@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,94 +8,70 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Search, Filter, RefreshCw, AlertCircle, CheckCircle2, Clock, Play, StopCircle, Eye, Download } from "lucide-react";
+import { dataService, ExecutionData } from "@/services/dataService";
+import { toast } from "sonner";
 
 const ExecutionMonitor = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [executions, setExecutions] = useState<ExecutionData[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const executions = [
-    {
-      id: "exec_001",
-      workflowId: "wf_001",
-      workflowName: "Customer Data Processing",
-      status: "success",
-      startTime: "2024-06-28 14:30:22",
-      endTime: "2024-06-28 14:30:24",
-      duration: "2.3s",
-      client: "Acme Corp",
-      triggeredBy: "sarah.johnson@acmecorp.com",
-      inputSize: "1.2MB",
-      outputSize: "847KB",
-      steps: 8,
-      completedSteps: 8,
-      errorMessage: null
-    },
-    {
-      id: "exec_002",
-      workflowId: "wf_002",
-      workflowName: "Email Marketing Automation",
-      status: "running",
-      startTime: "2024-06-28 14:31:15",
-      endTime: null,
-      duration: "45s",
-      client: "TechFlow Inc",
-      triggeredBy: "m.chen@techflow.com",
-      inputSize: "524KB",
-      outputSize: null,
-      steps: 12,
-      completedSteps: 7,
-      errorMessage: null
-    },
-    {
-      id: "exec_003",
-      workflowId: "wf_003",
-      workflowName: "Financial Report Generation",
-      status: "error",
-      startTime: "2024-06-28 14:25:10",
-      endTime: "2024-06-28 14:25:22",
-      duration: "12s",
-      client: "Enterprise Ltd",
-      triggeredBy: "d.wilson@enterprise.com",
-      inputSize: "2.1MB",
-      outputSize: null,
-      steps: 15,
-      completedSteps: 8,
-      errorMessage: "Failed to connect to external API endpoint"
-    },
-    {
-      id: "exec_004",
-      workflowId: "wf_004",
-      workflowName: "Inventory Management Sync",
-      status: "success",
-      startTime: "2024-06-28 14:20:45",
-      endTime: "2024-06-28 14:20:53",
-      duration: "8.7s",
-      client: "DataCorp",
-      triggeredBy: "lisa@datacorp.com",
-      inputSize: "3.5MB",
-      outputSize: "2.8MB",
-      steps: 10,
-      completedSteps: 10,
-      errorMessage: null
-    },
-    {
-      id: "exec_005",
-      workflowId: "wf_001",
-      workflowName: "Customer Data Processing",
-      status: "queued",
-      startTime: null,
-      endTime: null,
-      duration: null,
-      client: "StartupXYZ",
-      triggeredBy: "emily@startupxyz.com",
-      inputSize: "890KB",
-      outputSize: null,
-      steps: 8,
-      completedSteps: 0,
-      errorMessage: null
+  useEffect(() => {
+    loadExecutions();
+  }, []);
+
+  useEffect(() => {
+    if (autoRefresh) {
+      const interval = setInterval(loadExecutions, 5000); // Refresh every 5 seconds
+      return () => clearInterval(interval);
     }
-  ];
+  }, [autoRefresh]);
+
+  const loadExecutions = async () => {
+    try {
+      const data = await dataService.getExecutions();
+      setExecutions(data);
+      setLoading(false);
+    } catch (error) {
+      toast.error("Failed to load executions");
+      console.error("Error loading executions:", error);
+      setLoading(false);
+    }
+  };
+
+  const handleStopExecution = async (id: string, workflowName: string) => {
+    if (!confirm(`Stop execution for "${workflowName}"?`)) return;
+    
+    try {
+      await dataService.stopExecution(id);
+      toast.success(`Stopped execution: ${workflowName}`);
+      loadExecutions(); // Refresh data
+    } catch (error) {
+      toast.error("Failed to stop execution");
+    }
+  };
+
+  const handleRetryExecution = async (id: string, workflowName: string) => {
+    try {
+      await dataService.executeWorkflow(id);
+      toast.success(`Retrying execution: ${workflowName}`);
+      loadExecutions(); // Refresh data
+    } catch (error) {
+      toast.error("Failed to retry execution");
+    }
+  };
+
+  const handleViewExecution = (execution: ExecutionData) => {
+    toast.info(`Viewing execution details for ${execution.workflowName} - Feature ready for expansion`);
+    // TODO: Open execution details modal with logs, inputs, outputs
+  };
+
+  const handleExportLogs = () => {
+    toast.success("Export functionality ready - will generate CSV/JSON export");
+    // TODO: Generate and download execution logs
+  };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -134,6 +110,10 @@ const ExecutionMonitor = () => {
     return matchesSearch && matchesFilter;
   });
 
+  if (loading) {
+    return <div className="flex items-center justify-center h-64 text-white">Loading executions...</div>;
+  }
+
   return (
     <div className="space-y-6">
       {/* Header Actions */}
@@ -152,7 +132,11 @@ const ExecutionMonitor = () => {
             <RefreshCw className={`w-4 h-4 mr-2 ${autoRefresh ? 'animate-spin' : ''}`} />
             Auto Refresh
           </Button>
-          <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
+          <Button 
+            size="sm" 
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+            onClick={handleExportLogs}
+          >
             <Download className="w-4 h-4 mr-2" />
             Export Logs
           </Button>
@@ -246,7 +230,7 @@ const ExecutionMonitor = () => {
 
                         {/* Error Message */}
                         {execution.errorMessage && (
-                          <div className="bg-red-500/10 border border-red-500/20 rounded p-2 text-red-400 text-sm">
+                          <div className="bg-red-500/10 border border-red-500/20 rounded p-2 text-red-400 text-sm mb-3">
                             {execution.errorMessage}
                           </div>
                         )}
@@ -262,16 +246,31 @@ const ExecutionMonitor = () => {
 
                     {/* Actions */}
                     <div className="flex items-center space-x-2 ml-4">
-                      <Button size="sm" variant="outline" className="border-slate-600 text-slate-300 hover:bg-slate-700">
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="border-slate-600 text-slate-300 hover:bg-slate-700"
+                        onClick={() => handleViewExecution(execution)}
+                      >
                         <Eye className="w-4 h-4" />
                       </Button>
                       {execution.status === "running" && (
-                        <Button size="sm" variant="outline" className="border-red-600 text-red-400 hover:bg-red-600/10">
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="border-red-600 text-red-400 hover:bg-red-600/10"
+                          onClick={() => handleStopExecution(execution.id, execution.workflowName)}
+                        >
                           <StopCircle className="w-4 h-4" />
                         </Button>
                       )}
                       {execution.status === "error" && (
-                        <Button size="sm" variant="outline" className="border-blue-600 text-blue-400 hover:bg-blue-600/10">
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="border-blue-600 text-blue-400 hover:bg-blue-600/10"
+                          onClick={() => handleRetryExecution(execution.workflowId, execution.workflowName)}
+                        >
                           <Play className="w-4 h-4" />
                         </Button>
                       )}

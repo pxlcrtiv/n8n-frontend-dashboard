@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,78 +10,53 @@ import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Switch } from "@/components/ui/switch";
 import { UserPlus, Search, Filter, Shield, Mail, Calendar, Settings, Trash2, Eye } from "lucide-react";
+import { dataService, UserData } from "@/services/dataService";
+import { toast } from "sonner";
 
 const UserManager = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterRole, setFilterRole] = useState("all");
+  const [users, setUsers] = useState<UserData[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const users = [
-    {
-      id: "user_001",
-      name: "Sarah Johnson",
-      email: "sarah.johnson@acmecorp.com",
-      role: "admin",
-      company: "Acme Corp",
-      status: "active",
-      lastLogin: "2 hours ago",
-      workflows: 8,
-      avatar: "SJ",
-      joinedAt: "2024-01-15",
-      mfaEnabled: true
-    },
-    {
-      id: "user_002",
-      name: "Michael Chen",
-      email: "m.chen@techflow.com",
-      role: "editor",
-      company: "TechFlow Inc",
-      status: "active",
-      lastLogin: "1 day ago",
-      workflows: 5,
-      avatar: "MC",
-      joinedAt: "2024-02-01",
-      mfaEnabled: true
-    },
-    {
-      id: "user_003",
-      name: "Emily Rodriguez",
-      email: "emily@startupxyz.com",
-      role: "viewer",
-      company: "StartupXYZ",
-      status: "inactive",
-      lastLogin: "1 week ago",
-      workflows: 2,
-      avatar: "ER",
-      joinedAt: "2024-01-20",
-      mfaEnabled: false
-    },
-    {
-      id: "user_004",
-      name: "David Wilson",
-      email: "d.wilson@enterprise.com",
-      role: "editor",
-      company: "Enterprise Ltd",
-      status: "active",
-      lastLogin: "30 minutes ago",
-      workflows: 12,
-      avatar: "DW",
-      joinedAt: "2024-01-10",
-      mfaEnabled: true
-    },
-    {
-      id: "user_005",
-      name: "Lisa Thompson",
-      email: "lisa@datacorp.com",
-      role: "viewer",
-      company: "DataCorp",
-      status: "active",
-      lastLogin: "4 hours ago",
-      workflows: 3,
-      avatar: "LT",
-      joinedAt: "2024-02-10",
-      mfaEnabled: false
+  useEffect(() => {
+    loadUsers();
+  }, []);
+
+  const loadUsers = async () => {
+    try {
+      setLoading(true);
+      const data = await dataService.getUsers();
+      setUsers(data);
+    } catch (error) {
+      toast.error("Failed to load users");
+      console.error("Error loading users:", error);
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
+
+  const handleDeleteUser = async (id: string, name: string) => {
+    if (!confirm(`Are you sure you want to delete user "${name}"?`)) return;
+    
+    try {
+      await dataService.deleteUser(id);
+      toast.success(`Deleted user: ${name}`);
+      loadUsers(); // Refresh data
+    } catch (error) {
+      toast.error("Failed to delete user");
+    }
+  };
+
+  const handleViewUser = (user: UserData) => {
+    toast.info(`Viewing details for ${user.name} - Feature ready for expansion`);
+    // TODO: Open user details modal or navigate to user profile
+  };
+
+  const handleEditUser = (user: UserData) => {
+    toast.info(`Edit user ${user.name} - Feature ready for expansion`);
+    // TODO: Open edit user dialog
+  };
 
   const getRoleBadge = (role: string) => {
     const variants = {
@@ -107,6 +82,10 @@ const UserManager = () => {
     const matchesFilter = filterRole === "all" || user.role === filterRole;
     return matchesSearch && matchesFilter;
   });
+
+  if (loading) {
+    return <div className="flex items-center justify-center h-64 text-white">Loading users...</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -162,7 +141,12 @@ const UserManager = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <Button className="w-full bg-blue-600 hover:bg-blue-700">Create User</Button>
+              <Button 
+                className="w-full bg-blue-600 hover:bg-blue-700"
+                onClick={() => toast.success("Add user feature ready - connect to database")}
+              >
+                Create User
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -244,13 +228,28 @@ const UserManager = () => {
 
                   {/* Actions */}
                   <div className="flex items-center space-x-2">
-                    <Button size="sm" variant="outline" className="border-slate-600 text-slate-300 hover:bg-slate-700">
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="border-slate-600 text-slate-300 hover:bg-slate-700"
+                      onClick={() => handleViewUser(user)}
+                    >
                       <Eye className="w-4 h-4" />
                     </Button>
-                    <Button size="sm" variant="outline" className="border-slate-600 text-slate-300 hover:bg-slate-700">
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="border-slate-600 text-slate-300 hover:bg-slate-700"
+                      onClick={() => handleEditUser(user)}
+                    >
                       <Settings className="w-4 h-4" />
                     </Button>
-                    <Button size="sm" variant="outline" className="border-red-600 text-red-400 hover:bg-red-600/10">
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="border-red-600 text-red-400 hover:bg-red-600/10"
+                      onClick={() => handleDeleteUser(user.id, user.name)}
+                    >
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
