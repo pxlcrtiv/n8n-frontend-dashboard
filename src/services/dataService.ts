@@ -1,4 +1,3 @@
-
 // Central data service - replace these functions with n8n API calls when ready
 export interface WorkflowData {
   id: string;
@@ -249,16 +248,151 @@ const demoExecutions: ExecutionData[] = [
   }
 ];
 
-// Data service functions - REPLACE WITH n8n API CALLS
+// N8N API Service
+class N8nApiService {
+  private getSettings() {
+    const settings = localStorage.getItem('n8n-settings');
+    return settings ? JSON.parse(settings) : { baseUrl: '', apiKey: '', enabled: false };
+  }
+
+  private async makeRequest(endpoint: string, options: RequestInit = {}) {
+    const settings = this.getSettings();
+    
+    const response = await fetch(`${settings.baseUrl}${endpoint}`, {
+      ...options,
+      headers: {
+        'X-N8N-API-KEY': settings.apiKey,
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`N8N API Error: ${response.status} ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  async getWorkflows(): Promise<WorkflowData[]> {
+    const data = await this.makeRequest('/workflows');
+    return data.data.map((workflow: any) => ({
+      id: workflow.id,
+      name: workflow.name,
+      description: workflow.meta?.description || 'No description available',
+      status: workflow.active ? 'active' : 'paused',
+      assignedClients: 1, // N8N doesn't track this, using default
+      lastExecution: workflow.updatedAt ? new Date(workflow.updatedAt).toLocaleString() : 'Never',
+      executionCount: 0, // Would need separate API call to get this
+      tags: workflow.tags || [],
+      createdAt: workflow.createdAt
+    }));
+  }
+
+  async getExecutions(): Promise<ExecutionData[]> {
+    const data = await this.makeRequest('/executions');
+    return data.data.map((execution: any) => ({
+      id: execution.id,
+      workflowId: execution.workflowId,
+      workflowName: execution.workflowData?.name || 'Unknown Workflow',
+      status: this.mapExecutionStatus(execution.finished, execution.stoppedAt),
+      startTime: execution.startedAt,
+      endTime: execution.stoppedAt,
+      duration: execution.stoppedAt && execution.startedAt 
+        ? `${Math.round((new Date(execution.stoppedAt).getTime() - new Date(execution.startedAt).getTime()) / 1000)}s`
+        : null,
+      client: 'N8N Instance', // N8N doesn't track client info
+      triggeredBy: execution.mode || 'Unknown',
+      inputSize: '0KB', // N8N doesn't provide this directly
+      outputSize: '0KB', // N8N doesn't provide this directly
+      steps: execution.workflowData?.nodes?.length || 0,
+      completedSteps: execution.finished ? execution.workflowData?.nodes?.length || 0 : 0,
+      errorMessage: execution.data?.resultData?.error?.message || null
+    }));
+  }
+
+  async getStats(): Promise<StatsData> {
+    const [workflows, executions] = await Promise.all([
+      this.getWorkflows(),
+      this.getExecutions()
+    ]);
+
+    const successfulExecutions = executions.filter(e => e.status === 'success').length;
+    const totalExecutions = executions.length;
+    
+    return {
+      totalWorkflows: workflows.length,
+      activeExecutions: executions.filter(e => e.status === 'running').length,
+      totalUsers: 1, // N8N doesn't have user management in this context
+      successRate: totalExecutions > 0 ? Math.round((successfulExecutions / totalExecutions) * 100) : 0
+    };
+  }
+
+  async executeWorkflow(id: string): Promise<void> {
+    await this.makeRequest(`/workflows/${id}/activate`, {
+      method: 'POST'
+    });
+  }
+
+  async pauseWorkflow(id: string): Promise<void> {
+    await this.makeRequest(`/workflows/${id}/activate`, {
+      method: 'POST',
+      body: JSON.stringify({ active: false })
+    });
+  }
+
+  async deleteWorkflow(id: string): Promise<void> {
+    await this.makeRequest(`/workflows/${id}`, {
+      method: 'DELETE'
+    });
+  }
+
+  async stopExecution(id: string): Promise<void> {
+    await this.makeRequest(`/executions/${id}/stop`, {
+      method: 'POST'
+    });
+  }
+
+  private mapExecutionStatus(finished: boolean, stoppedAt: string | null): 'success' | 'running' | 'error' | 'queued' {
+    if (!finished && !stoppedAt) return 'running';
+    if (finished && stoppedAt) return 'success';
+    if (stoppedAt && !finished) return 'error';
+    return 'queued';
+  }
+}
+
+// Updated Data service functions
 export const dataService = {
   // Workflows
   async getWorkflows(): Promise<WorkflowData[]> {
-    // TODO: Replace with n8n API call
+    const settings = JSON.parse(localStorage.getItem('n8n-settings') || '{"enabled": false}');
+    
+    if (settings.enabled && settings.baseUrl && settings.apiKey) {
+      try {
+        const n8nApi = new N8nApiService();
+        return await n8nApi.getWorkflows();
+      } catch (error) {
+        console.error('N8N API Error, falling back to demo data:', error);
+      }
+    }
     return Promise.resolve(demoWorkflows);
   },
 
   async deleteWorkflow(id: string): Promise<void> {
-    // TODO: Replace with n8n API call
+    const settings = JSON.parse(localStorage.getItem('n8n-settings') || '{"enabled": false}');
+    
+    if (settings.enabled && settings.baseUrl && settings.apiKey) {
+      try {
+        const n8nApi = new N8nApiService();
+        await n8nApi.deleteWorkflow(id);
+        return;
+      } catch (error) {
+        console.error('N8N API Error:', error);
+        throw error;
+      }
+    }
+    
+    // Demo mode - remove from demo data
     console.log(`Deleting workflow ${id}`);
     const index = demoWorkflows.findIndex(w => w.id === id);
     if (index !== -1) {
@@ -267,12 +401,36 @@ export const dataService = {
   },
 
   async executeWorkflow(id: string): Promise<void> {
-    // TODO: Replace with n8n API call
+    const settings = JSON.parse(localStorage.getItem('n8n-settings') || '{"enabled": false}');
+    
+    if (settings.enabled && settings.baseUrl && settings.apiKey) {
+      try {
+        const n8nApi = new N8nApiService();
+        await n8nApi.executeWorkflow(id);
+        return;
+      } catch (error) {
+        console.error('N8N API Error:', error);
+        throw error;
+      }
+    }
+    
     console.log(`Executing workflow ${id}`);
   },
 
   async pauseWorkflow(id: string): Promise<void> {
-    // TODO: Replace with n8n API call
+    const settings = JSON.parse(localStorage.getItem('n8n-settings') || '{"enabled": false}');
+    
+    if (settings.enabled && settings.baseUrl && settings.apiKey) {
+      try {
+        const n8nApi = new N8nApiService();
+        await n8nApi.pauseWorkflow(id);
+        return;
+      } catch (error) {
+        console.error('N8N API Error:', error);
+        throw error;
+      }
+    }
+    
     console.log(`Pausing workflow ${id}`);
     const workflow = demoWorkflows.find(w => w.id === id);
     if (workflow) {
@@ -280,14 +438,12 @@ export const dataService = {
     }
   },
 
-  // Users
+  // Users - N8N doesn't have user management, so always use demo data
   async getUsers(): Promise<UserData[]> {
-    // TODO: Replace with database call
     return Promise.resolve(demoUsers);
   },
 
   async deleteUser(id: string): Promise<void> {
-    // TODO: Replace with database call
     console.log(`Deleting user ${id}`);
     const index = demoUsers.findIndex(u => u.id === id);
     if (index !== -1) {
@@ -297,12 +453,33 @@ export const dataService = {
 
   // Executions
   async getExecutions(): Promise<ExecutionData[]> {
-    // TODO: Replace with n8n API call
+    const settings = JSON.parse(localStorage.getItem('n8n-settings') || '{"enabled": false}');
+    
+    if (settings.enabled && settings.baseUrl && settings.apiKey) {
+      try {
+        const n8nApi = new N8nApiService();
+        return await n8nApi.getExecutions();
+      } catch (error) {
+        console.error('N8N API Error, falling back to demo data:', error);
+      }
+    }
     return Promise.resolve(demoExecutions);
   },
 
   async stopExecution(id: string): Promise<void> {
-    // TODO: Replace with n8n API call
+    const settings = JSON.parse(localStorage.getItem('n8n-settings') || '{"enabled": false}');
+    
+    if (settings.enabled && settings.baseUrl && settings.apiKey) {
+      try {
+        const n8nApi = new N8nApiService();
+        await n8nApi.stopExecution(id);
+        return;
+      } catch (error) {
+        console.error('N8N API Error:', error);
+        throw error;
+      }
+    }
+    
     console.log(`Stopping execution ${id}`);
     const execution = demoExecutions.find(e => e.id === id);
     if (execution) {
@@ -313,7 +490,17 @@ export const dataService = {
 
   // Stats
   async getStats(): Promise<StatsData> {
-    // TODO: Calculate from n8n API data
+    const settings = JSON.parse(localStorage.getItem('n8n-settings') || '{"enabled": false}');
+    
+    if (settings.enabled && settings.baseUrl && settings.apiKey) {
+      try {
+        const n8nApi = new N8nApiService();
+        return await n8nApi.getStats();
+      } catch (error) {
+        console.error('N8N API Error, falling back to demo data:', error);
+      }
+    }
+    
     return Promise.resolve({
       totalWorkflows: demoWorkflows.length,
       activeExecutions: demoExecutions.filter(e => e.status === 'running').length,
