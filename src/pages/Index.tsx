@@ -4,11 +4,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Activity, Users, Workflow, Settings, Play, Pause, AlertCircle, CheckCircle2, Clock, Upload } from "lucide-react";
+import { Activity, Users, Workflow, Settings, Play, Pause, AlertCircle, CheckCircle2, Clock, Upload, TrendingUp } from "lucide-react";
 import WorkflowManager from "@/components/WorkflowManager";
 import UserManager from "@/components/UserManager";
 import ExecutionMonitor from "@/components/ExecutionMonitor";
 import DashboardStats from "@/components/DashboardStats";
+import AnalyticsDashboard from "@/components/AnalyticsDashboard";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -45,10 +46,14 @@ const Index = () => {
       {/* Main Content */}
       <div className="container mx-auto px-6 py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 bg-slate-800/50 border border-slate-700">
+          <TabsList className="grid w-full grid-cols-5 bg-slate-800/50 border border-slate-700">
             <TabsTrigger value="dashboard" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
               <Activity className="w-4 h-4 mr-2" />
               Dashboard
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+              <TrendingUp className="w-4 h-4 mr-2" />
+              Analytics
             </TabsTrigger>
             <TabsTrigger value="workflows" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
               <Workflow className="w-4 h-4 mr-2" />
@@ -66,6 +71,10 @@ const Index = () => {
 
           <TabsContent value="dashboard" className="space-y-6">
             <DashboardStats />
+          </TabsContent>
+
+          <TabsContent value="analytics" className="space-y-6">
+            <AnalyticsDashboard />
           </TabsContent>
 
           <TabsContent value="workflows" className="space-y-6">
